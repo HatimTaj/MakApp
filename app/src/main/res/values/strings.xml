@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">MAK Manager</string>
+    <string name="unit_price_placeholder">₹0 / unit</string>
+</resources>

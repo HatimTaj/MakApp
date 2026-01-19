@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1033306481450",
+    "project_id": "mak-manager-5dd46",
+    "storage_bucket": "mak-manager-5dd46.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1033306481450:android:9e984d0524e0d7ce0bf453",
+        "android_client_info": {
+          "package_name": "com.hatim.makmanager"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDTdQhLrQMrRgFNvpFVJ9X8DhBzEdvUK-s"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
