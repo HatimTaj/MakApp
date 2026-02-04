@@ -62,6 +62,7 @@ class ProfileDialog : DialogFragment() {
                     binding.etFirmName.setText(doc.getString("name"))
                     binding.etAddress.setText(doc.getString("address"))
                     binding.etCity.setText(doc.getString("city"))
+                    binding.etGst.setText(doc.getString("gstNumber"))
 
                     // Payment Button Logic
                     if (balance > 1.0) {
@@ -90,7 +91,8 @@ class ProfileDialog : DialogFragment() {
         val newData = mapOf(
             "name" to binding.etFirmName.text.toString(),
             "address" to binding.etAddress.text.toString(),
-            "city" to binding.etCity.text.toString()
+            "city" to binding.etCity.text.toString(),
+            "gstNumber" to binding.etGst.text.toString() // NEW
         )
 
         CoroutineScope(Dispatchers.IO).launch {

@@ -1,64 +1,69 @@
 package com.hatim.makmanager.ui.admin
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
-import com.hatim.makmanager.data.Resource
-import com.hatim.makmanager.data.repository.OrderRepository
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Query
+import com.hatim.makmanager.data.model.Order
 import com.hatim.makmanager.databinding.ActivityAdminOrdersBinding
-import com.hatim.makmanager.ui.adapters.OrderAdapter
+import com.hatim.makmanager.ui.admin.OrderAdapter
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 
 class AdminOrdersActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityAdminOrdersBinding
-    private val repository = OrderRepository()
-    private val orderAdapter = OrderAdapter{
-        order ->
-    val intent = android.content.Intent(this, OrderDetailsActivity::class.java)
-    intent.putExtra("ORDER_ID", order.id)
-    intent.putExtra("IS_ADMIN", true) // Enable Approve buttons
-    startActivity(intent)}
+    private val db = FirebaseFirestore.getInstance()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityAdminOrdersBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        binding.rvAllOrders.layoutManager = LinearLayoutManager(this)
-        binding.rvAllOrders.adapter = orderAdapter
+        binding.toolbar.setNavigationOnClickListener { finish() }
+        binding.rvOrders.layoutManager = LinearLayoutManager(this)
 
-        // Back Button
-        binding.ivBack.setOnClickListener { finish() }
+        loadOrders()
+    }
 
-        loadAllOrders()
+    private fun loadOrders() {
+        lifecycleScope.launch {
+            binding.progressBar.visibility = View.VISIBLE
+            try {
+                val snapshot = db.collection("orders")
+                    .orderBy("timestamp", Query.Direction.DESCENDING)
+                    .get()
+                    .await()
 
-        binding.swipeRefresh.setOnRefreshListener {
-            loadAllOrders()
+                // FIX: Manually map the Document ID to the Order object
+                val orders = snapshot.documents.mapNotNull { doc ->
+                    doc.toObject(Order::class.java)?.copy(id = doc.id)
+                }
+
+                val adapter = OrderAdapter { order ->
+                    val intent = Intent(this@AdminOrdersActivity, OrderDetailsActivity::class.java)
+                    intent.putExtra("ORDER_ID", order.id) // Now this ID is not empty
+                    intent.putExtra("IS_ADMIN", true)
+                    startActivity(intent)
+                }
+
+                binding.rvOrders.adapter = adapter
+                adapter.submitList(orders)
+
+            } catch (e: Exception) {
+                Toast.makeText(this@AdminOrdersActivity, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+            binding.progressBar.visibility = View.GONE
         }
     }
 
-    private fun loadAllOrders() {
-        lifecycleScope.launch {
-            binding.progressBar.visibility = View.VISIBLE
-            when (val result = repository.getAllOrders()) {
-                is Resource.Success -> {
-                    orderAdapter.submitList(result.data)
-                    binding.progressBar.visibility = View.GONE
-                    binding.swipeRefresh.isRefreshing = false
-
-                    binding.tvEmpty.visibility = if (result.data.isEmpty()) View.VISIBLE else View.GONE
-                }
-                is Resource.Error -> {
-                    binding.progressBar.visibility = View.GONE
-                    binding.swipeRefresh.isRefreshing = false
-                    Toast.makeText(this@AdminOrdersActivity, result.message, Toast.LENGTH_SHORT).show()
-                }
-                else -> {}
-            }
-        }
+    override fun onResume() {
+        super.onResume()
+        loadOrders()
     }
 }

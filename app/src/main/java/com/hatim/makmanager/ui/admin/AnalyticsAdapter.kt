@@ -4,8 +4,6 @@ import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import com.hatim.makmanager.databinding.ItemAnalyticsBinding
-import java.text.NumberFormat
-import java.util.Locale
 
 class AnalyticsAdapter(private val data: List<Pair<String, Double>>) :
     RecyclerView.Adapter<AnalyticsAdapter.ViewHolder>() {
@@ -21,8 +19,8 @@ class AnalyticsAdapter(private val data: List<Pair<String, Double>>) :
         val (name, litres) = data[position]
         holder.binding.tvDealerName.text = name
 
-        val format = NumberFormat.getNumberInstance(Locale.US)
-        holder.binding.tvLitres.text = "${format.format(litres.toInt())} L"
+        // FIX: Display 2 decimal places (e.g., 12.50 L)
+        holder.binding.tvLitres.text = String.format("%.2f L", litres)
     }
 
     override fun getItemCount() = data.size

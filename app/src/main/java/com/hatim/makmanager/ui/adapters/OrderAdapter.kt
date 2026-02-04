@@ -1,4 +1,4 @@
-package com.hatim.makmanager.ui.adapters
+package com.hatim.makmanager.ui.admin // Ensure this package is correct
 
 import android.graphics.Color
 import android.view.LayoutInflater
@@ -6,15 +6,15 @@ import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
+import com.hatim.makmanager.R
 import com.hatim.makmanager.data.model.Order
-import com.hatim.makmanager.databinding.ItemOrderBinding
+import com.hatim.makmanager.databinding.ItemOrderBinding // This is generated from item_order.xml
 import java.text.SimpleDateFormat
 import java.util.Locale
-import java.text.NumberFormat
 
 class OrderAdapter(
-    private val onOrderClick: (Order) -> Unit)
-    : ListAdapter<Order, OrderAdapter.OrderViewHolder>(DiffCallback()) {
+    private val onClick: (Order) -> Unit
+) : ListAdapter<Order, OrderAdapter.OrderViewHolder>(DiffCallback()) {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): OrderViewHolder {
         val binding = ItemOrderBinding.inflate(LayoutInflater.from(parent.context), parent, false)
@@ -27,39 +27,35 @@ class OrderAdapter(
 
     inner class OrderViewHolder(private val binding: ItemOrderBinding) : RecyclerView.ViewHolder(binding.root) {
         fun bind(order: Order) {
-            // 1. Dealer Name / Order ID
-            binding.tvDealerName.text = if(order.dealerName.isNotEmpty()) order.dealerName else "Order #${order.id.takeLast(5)}"
+            val dateFormat = SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault())
 
-            // 2. Date
-            val sdf = SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault())
-            binding.tvDate.text = sdf.format(order.timestamp.toDate())
+            // These IDs must match item_order.xml
+            binding.tvDealerName.text = order.dealerName
+            binding.tvDate.text = dateFormat.format(order.timestamp.toDate())
 
-            // 3. Totals
-            val format = NumberFormat.getCurrencyInstance(Locale("en", "IN"))
-            binding.tvTotal.text = format.format(order.totalPrice)
-            binding.tvItemCount.text = "${order.items.size} Items (${order.totalLitres.toInt()} L)"
+            // This line caused the error before because the ID was missing in XML
+            binding.tvDetails.text = String.format("%.2f Litres  |  ₹%.0f", order.totalLitres, order.totalPrice)
 
-            // 4. Status Coloring
             binding.tvStatus.text = order.status
             when (order.status) {
                 "APPROVED" -> {
-                    binding.tvStatus.setTextColor(Color.parseColor("#2E7D32")) // Green
-                    binding.tvStatus.setBackgroundColor(Color.parseColor("#E8F5E9"))
+                    binding.tvStatus.setTextColor(Color.parseColor("#2E7D32"))
+                    binding.tvStatus.setBackgroundResource(R.drawable.bg_status_approved)
                 }
                 "REJECTED" -> {
-                    binding.tvStatus.setTextColor(Color.parseColor("#C62828")) // Red
-                    binding.tvStatus.setBackgroundColor(Color.parseColor("#FFEBEE"))
+                    binding.tvStatus.setTextColor(Color.parseColor("#C62828"))
+                    binding.tvStatus.setBackgroundResource(R.drawable.bg_status_rejected)
                 }
-                else -> { // PENDING
-                    binding.tvStatus.setTextColor(Color.parseColor("#EF6C00")) // Orange
-                    binding.tvStatus.setBackgroundColor(Color.parseColor("#FFF3E0"))
+                else -> {
+                    binding.tvStatus.setTextColor(Color.parseColor("#EF6C00"))
+                    binding.tvStatus.setBackgroundResource(R.drawable.bg_status_pending)
                 }
             }
-            binding.root.setOnClickListener {
-                onOrderClick(order)
-            }
+
+            binding.root.setOnClickListener { onClick(order) }
         }
     }
+
     class DiffCallback : DiffUtil.ItemCallback<Order>() {
         override fun areItemsTheSame(oldItem: Order, newItem: Order) = oldItem.id == newItem.id
         override fun areContentsTheSame(oldItem: Order, newItem: Order) = oldItem == newItem

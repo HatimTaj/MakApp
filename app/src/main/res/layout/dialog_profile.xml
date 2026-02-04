@@ -7,13 +7,13 @@
     android:background="?attr/colorSurface">
 
     <TextView
-        android:text="Edit Profile"
-        android:textSize="20sp"
-        android:textStyle="bold"
-        android:layout_marginBottom="16dp"
-        android:textColor="?attr/colorOnSurface"
         android:layout_width="wrap_content"
-        android:layout_height="wrap_content"/>
+        android:layout_height="wrap_content"
+        android:text="My Profile"
+        android:textSize="22sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="20dp"
+        android:textColor="?attr/colorOnSurface"/>
 
     <LinearLayout
         android:id="@+id/llBalanceContainer"
@@ -22,17 +22,67 @@
         android:orientation="vertical"
         android:background="#FFEBEE"
         android:padding="16dp"
-        android:layout_marginBottom="16dp"
+        android:layout_marginBottom="20dp"
         android:visibility="gone">
 
-        <TextView android:text="Outstanding Balance" android:textColor="#D32F2F" android:layout_width="wrap_content" android:layout_height="wrap_content"/>
-        <TextView android:id="@+id/tvBalance" android:text="₹0" android:textStyle="bold" android:textSize="24sp" android:textColor="#D32F2F" android:layout_width="wrap_content" android:layout_height="wrap_content"/>
-        <Button android:id="@+id/btnPayNow" android:text="Pay via UPI" android:backgroundTint="#D32F2F" android:textColor="#FFFFFF" android:layout_marginTop="8dp" android:layout_width="wrap_content" android:layout_height="wrap_content"/>
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Outstanding Balance"
+            android:textSize="12sp"
+            android:textColor="#C62828"/>
+
+        <TextView
+            android:id="@+id/tvBalance"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="₹0"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:textColor="#C62828"/>
+
+        <Button
+            android:id="@+id/btnPayNow"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="PAY NOW (UPI)"
+            android:layout_marginTop="8dp"
+            android:backgroundTint="#C62828"
+            android:textColor="#FFFFFF"/>
     </LinearLayout>
 
-    <EditText android:id="@+id/etFirmName" android:hint="Firm Name" android:layout_width="match_parent" android:layout_height="wrap_content"/>
-    <EditText android:id="@+id/etAddress" android:hint="Address" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp"/>
-    <EditText android:id="@+id/etCity" android:hint="City" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp"/>
+    <EditText
+        android:id="@+id/etFirmName"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Firm Name"/>
 
-    <Button android:id="@+id/btnSaveProfile" android:text="Save Profile" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="24dp"/>
+    <EditText
+        android:id="@+id/etAddress"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:hint="Address"/>
+
+    <EditText
+        android:id="@+id/etCity"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:hint="City"/>
+
+    <EditText
+        android:id="@+id/etGst"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:hint="GST Number (Optional)"/>
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnSaveProfile"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:text="Update Profile"/>
+
 </LinearLayout>

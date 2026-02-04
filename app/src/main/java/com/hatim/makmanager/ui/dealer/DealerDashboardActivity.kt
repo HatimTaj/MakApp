@@ -1,14 +1,20 @@
 package com.hatim.makmanager.ui.dealer
 
+import android.app.AlertDialog
 import android.content.Intent
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 import com.hatim.makmanager.R
 import com.hatim.makmanager.databinding.ActivityDealerDashboardBinding
 import com.hatim.makmanager.ui.auth.LoginActivity
-import android.net.Uri
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
+
 class DealerDashboardActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityDealerDashboardBinding
@@ -17,6 +23,9 @@ class DealerDashboardActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityDealerDashboardBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        // CHECK APPROVAL
+        checkApprovalStatus()
 
         loadFragment(CatalogFragment())
 
@@ -35,29 +44,47 @@ class DealerDashboardActivity : AppCompatActivity() {
             finish()
         }
 
-        // --- NEW: EDIT PROFILE BUTTON ---
         binding.ivProfile.setOnClickListener {
             ProfileDialog().show(supportFragmentManager, "ProfileDialog")
         }
     }
-    private fun payViaUpi(amount: String, name: String, upiId: String) {
-        val uri = Uri.parse("upi://pay").buildUpon()
-            .appendQueryParameter("pa", upiId) // YOUR UPI ID HERE (e.g. 9824052821@okbizaxis)
-            .appendQueryParameter("pn", "MAK Manager")
-            .appendQueryParameter("am", amount)
-            .appendQueryParameter("cu", "INR")
-            .build()
 
-        val intent = Intent(Intent.ACTION_VIEW)
-        intent.data = uri
+    private fun checkApprovalStatus() {
+        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
 
-        val chooser = Intent.createChooser(intent, "Pay with")
-        if (intent.resolveActivity(packageManager) != null) {
-            startActivity(chooser)
-        } else {
-            // Toast: No UPI app found
+        CoroutineScope(Dispatchers.Main).launch {
+            try {
+                val doc = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                    .collection("users").document(uid).get().await()
+
+                // If field doesn't exist, default to FALSE (Blocked)
+                val isApproved = doc.getBoolean("isApproved") ?: false
+                val role = doc.getString("role") ?: "dealer"
+
+                if (!isApproved && role != "admin") {
+                    showBlockDialog()
+                }
+            } catch (e: Exception) { }
         }
     }
+
+    private fun showBlockDialog() {
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Account Pending")
+            .setMessage("Your account is waiting for Admin Approval.\nPlease contact the administrator.")
+            .setCancelable(false) // User CANNOT close this
+            .setPositiveButton("Refresh") { _, _ ->
+                checkApprovalStatus() // Try again
+            }
+            .setNegativeButton("Logout") { _, _ ->
+                FirebaseAuth.getInstance().signOut()
+                startActivity(Intent(this, LoginActivity::class.java))
+                finish()
+            }
+            .create()
+        dialog.show()
+    }
+
     private fun loadFragment(fragment: Fragment) {
         supportFragmentManager.beginTransaction()
             .replace(R.id.fragmentContainer, fragment)

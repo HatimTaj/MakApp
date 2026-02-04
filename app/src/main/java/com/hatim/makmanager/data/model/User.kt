@@ -6,6 +6,8 @@ data class User(
     val phone: String = "",
     val address: String = "",
     val city: String = "",
-    val role: String = "dealer", // "admin" or "dealer"
-    val currentBalance: Double = 0.0 // Positive means Debt (Dealer has to pay)
+    val gstNumber: String = "", // NEW: Optional
+    val role: String = "dealer",
+    val currentBalance: Double = 0.0,
+    val isApproved: Boolean = false // NEW: Block access by default
 )

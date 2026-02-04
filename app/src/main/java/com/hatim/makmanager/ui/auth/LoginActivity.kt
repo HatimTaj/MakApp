@@ -2,106 +2,86 @@ package com.hatim.makmanager.ui.auth
 
 import android.content.Intent
 import android.os.Bundle
-import android.view.View
 import android.widget.Toast
-import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
-import com.hatim.makmanager.data.Resource
 import com.hatim.makmanager.databinding.ActivityLoginBinding
 import com.hatim.makmanager.ui.admin.AdminDashboardActivity
 import com.hatim.makmanager.ui.dealer.DealerDashboardActivity
+import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class LoginActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityLoginBinding
-    private val viewModel: LoginViewModel by viewModels()
     private val auth = FirebaseAuth.getInstance()
     private val db = FirebaseFirestore.getInstance()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        // --- 1. AUTO-LOGIN CHECK ---
-        val currentUser = auth.currentUser
-        if (currentUser != null) {
-            // User is already logged in, fetch role and redirect immediately
-            checkRoleAndRedirect(currentUser.uid)
-            return // Stop loading the Login UI
-        }
-
         binding = ActivityLoginBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // --- 2. LOGIN BUTTON LOGIC ---
+        // If already logged in, redirect
+        if (auth.currentUser != null) {
+            checkUserRole(auth.currentUser!!.uid)
+        }
+
         binding.btnLogin.setOnClickListener {
-            val rawPhone = binding.etEmail.text.toString().trim()
-            val password = binding.etPassword.text.toString().trim()
+            val phone = binding.etPhone.text.toString().trim()
+            val pass = binding.etPassword.text.toString().trim()
 
-            if (rawPhone.length != 10) {
-                binding.etEmail.error = "Please enter a valid 10-digit mobile number"
+            if (phone.isEmpty() || pass.isEmpty()) {
+                Toast.makeText(this, "Enter phone and password", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
 
-            if (password.isEmpty()) {
-                binding.etPassword.error = "Password cannot be empty"
-                return@setOnClickListener
-            }
+            val fakeEmail = "$phone@mak.com"
+            binding.btnLogin.isEnabled = false
+            binding.btnLogin.text = "Logging in..."
 
-            // Fake Email conversion
-            val loginId = "$rawPhone@mak.com"
-            viewModel.login(loginId, password)
-        }
-
-        // --- 3. OBSERVE LOGIN RESULT ---
-        viewModel.loginState.observe(this) { state ->
-            when (state) {
-                is Resource.Loading -> {
-                    binding.progressBar.visibility = View.VISIBLE
-                    binding.btnLogin.isEnabled = false
+            auth.signInWithEmailAndPassword(fakeEmail, pass)
+                .addOnSuccessListener { result ->
+                    checkUserRole(result.user!!.uid)
                 }
-                is Resource.Error -> {
-                    binding.progressBar.visibility = View.GONE
+                .addOnFailureListener {
+                    Toast.makeText(this, "Login Failed: ${it.message}", Toast.LENGTH_SHORT).show()
                     binding.btnLogin.isEnabled = true
-                    Toast.makeText(this, "Login Failed: ${state.message}", Toast.LENGTH_LONG).show()
+                    binding.btnLogin.text = "Login"
                 }
-                is Resource.Success -> {
-                    binding.progressBar.visibility = View.GONE
-                    navigateBasedOnRole(state.data.role)
-                }
-            }
+        }
+
+        // NEW: Go to Register Screen
+        binding.tvRegister.setOnClickListener {
+            startActivity(Intent(this, RegisterActivity::class.java))
         }
     }
 
-    // Helper to check role silently on startup
-    private fun checkRoleAndRedirect(uid: String) {
-        db.collection("users").document(uid).get()
-            .addOnSuccessListener { document ->
-                if (document.exists()) {
-                    val role = document.getString("role") ?: "DEALER"
-                    navigateBasedOnRole(role)
-                } else {
-                    // Session invalid, force login
-                    setContentView(binding.root)
+    private fun checkUserRole(uid: String) {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val document = db.collection("users").document(uid).get().await()
+                val role = document.getString("role") ?: "dealer"
+
+                withContext(Dispatchers.Main) {
+                    if (role == "admin") {
+                        startActivity(Intent(this@LoginActivity, AdminDashboardActivity::class.java))
+                    } else {
+                        startActivity(Intent(this@LoginActivity, DealerDashboardActivity::class.java))
+                    }
+                    finish()
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@LoginActivity, "Error fetching user role", Toast.LENGTH_SHORT).show()
+                    binding.btnLogin.isEnabled = true
+                    binding.btnLogin.text = "Login"
                 }
             }
-            .addOnFailureListener {
-                // Network error, force login
-                setContentView(binding.root)
-            }
-    }
-
-    private fun navigateBasedOnRole(role: String) {
-        if (role == "ADMIN") {
-            val intent = Intent(this, AdminDashboardActivity::class.java)
-            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            startActivity(intent)
-        } else {
-            val intent = Intent(this, DealerDashboardActivity::class.java)
-            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            startActivity(intent)
         }
-        finish()
     }
 }

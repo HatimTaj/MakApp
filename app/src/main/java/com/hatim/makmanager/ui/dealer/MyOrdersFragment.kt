@@ -1,5 +1,6 @@
 package com.hatim.makmanager.ui.dealer
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import android.widget.Toast
@@ -7,63 +8,68 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Query
 import com.hatim.makmanager.R
-import com.hatim.makmanager.data.Resource
-import com.hatim.makmanager.data.repository.OrderRepository
+import com.hatim.makmanager.data.model.Order
 import com.hatim.makmanager.databinding.FragmentMyOrdersBinding
-import com.hatim.makmanager.ui.adapters.OrderAdapter
+import com.hatim.makmanager.ui.admin.OrderAdapter
+import com.hatim.makmanager.ui.admin.OrderDetailsActivity
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 
 class MyOrdersFragment : Fragment(R.layout.fragment_my_orders) {
 
     private lateinit var binding: FragmentMyOrdersBinding
-    private val repository = OrderRepository()
-    private val orderAdapter = OrderAdapter{ order ->
-        val intent = android.content.Intent(context, com.hatim.makmanager.ui.admin.OrderDetailsActivity::class.java)
-        intent.putExtra("ORDER_ID", order.id)
-        intent.putExtra("IS_ADMIN", false) // Hide Approve buttons
-        startActivity(intent)
-    }
+    private val db = FirebaseFirestore.getInstance()
+    private val auth = FirebaseAuth.getInstance()
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         binding = FragmentMyOrdersBinding.bind(view)
 
         binding.rvOrders.layoutManager = LinearLayoutManager(context)
-        binding.rvOrders.adapter = orderAdapter
 
         loadOrders()
-
-        binding.swipeRefresh.setOnRefreshListener {
-            loadOrders()
-        }
     }
 
     private fun loadOrders() {
-        val uid = FirebaseAuth.getInstance().uid ?: return
+        val userId = auth.currentUser?.uid ?: return
 
         lifecycleScope.launch {
             binding.progressBar.visibility = View.VISIBLE
+            try {
+                val snapshot = db.collection("orders")
+                    .whereEqualTo("dealerId", userId)
+                    .orderBy("timestamp", Query.Direction.DESCENDING)
+                    .get()
+                    .await()
 
-            when (val result = repository.getMyOrders(uid)) {
-                is Resource.Success -> {
-                    orderAdapter.submitList(result.data)
-                    binding.progressBar.visibility = View.GONE
-                    binding.swipeRefresh.isRefreshing = false
+                // FIX: Manually map the Document ID here too
+                val orders = snapshot.documents.mapNotNull { doc ->
+                    doc.toObject(Order::class.java)?.copy(id = doc.id)
+                }
 
-                    if (result.data.isEmpty()) {
-                        binding.tvEmpty.visibility = View.VISIBLE
-                    } else {
-                        binding.tvEmpty.visibility = View.GONE
+                if (orders.isEmpty()) {
+                    binding.tvNoOrders.visibility = View.VISIBLE
+                } else {
+                    binding.tvNoOrders.visibility = View.GONE
+
+                    val adapter = OrderAdapter { order ->
+                        val intent = Intent(requireContext(), OrderDetailsActivity::class.java)
+                        intent.putExtra("ORDER_ID", order.id)
+                        intent.putExtra("IS_ADMIN", false)
+                        startActivity(intent)
                     }
+
+                    binding.rvOrders.adapter = adapter
+                    adapter.submitList(orders)
                 }
-                is Resource.Error -> {
-                    binding.progressBar.visibility = View.GONE
-                    binding.swipeRefresh.isRefreshing = false
-                    Toast.makeText(context, result.message, Toast.LENGTH_SHORT).show()
-                }
-                else -> {}
+
+            } catch (e: Exception) {
+                Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
             }
+            binding.progressBar.visibility = View.GONE
         }
     }
 }

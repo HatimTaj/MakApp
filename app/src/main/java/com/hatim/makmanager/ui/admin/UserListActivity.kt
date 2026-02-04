@@ -1,6 +1,7 @@
 package com.hatim.makmanager.ui.admin
 
 import android.app.AlertDialog
+import android.graphics.Color
 import android.os.Bundle
 import android.text.InputType
 import android.view.LayoutInflater
@@ -39,46 +40,45 @@ class UserListActivity : AppCompatActivity() {
     }
 
     private fun loadUsers() {
-        lifecycleScope.launch {
-            binding.progressBar.visibility = View.VISIBLE
-            try {
-                // CHANGED: Removed .whereEqualTo("role", "dealer")
-                // Now it fetches ALL users so you can definitely see them.
-                val snapshot = db.collection("users").get().await()
+        binding.progressBar.visibility = View.VISIBLE
 
-                if (snapshot.isEmpty) {
-                    Toast.makeText(this@UserListActivity, "No users found in Database", Toast.LENGTH_LONG).show()
+        // CHANGED: Use addSnapshotListener for Realtime Updates
+        db.collection("users")
+            .addSnapshotListener { snapshot, e ->
+                binding.progressBar.visibility = View.GONE
+                if (e != null || snapshot == null) {
+                    Toast.makeText(this, "Error loading data", Toast.LENGTH_SHORT).show()
+                    return@addSnapshotListener
                 }
 
                 val users = snapshot.documents.mapNotNull { doc ->
-                    // Manual mapping to handle missing fields safely
-                    val name = doc.getString("name") ?: "Unknown"
-                    val phone = doc.getString("phone") ?: ""
-                    val balance = doc.getDouble("currentBalance") ?: 0.0
-
-                    User(
-                        uid = doc.id,
-                        name = name,
-                        phone = phone,
-                        currentBalance = balance
-                    )
+                    val user = doc.toObject(User::class.java)
+                    user?.copy(uid = doc.id)
                 }
 
-                binding.rvUsers.adapter = UserLedgerAdapter(users) { user ->
-                    showPaymentDialog(user)
-                }
-            } catch (e: Exception) {
-                Toast.makeText(this@UserListActivity, "Error: ${e.message}", Toast.LENGTH_LONG).show()
+                binding.rvUsers.adapter = UserLedgerAdapter(users,
+                    onReceiveClick = { user -> showPaymentDialog(user) },
+                    onApproveClick = { user -> approveUser(user) }
+                )
             }
-            binding.progressBar.visibility = View.GONE
+    }
+
+    private fun approveUser(user: User) {
+        lifecycleScope.launch {
+            try {
+                // Just update DB. The listener above will auto-refresh the UI.
+                db.collection("users").document(user.uid).update("isApproved", true).await()
+                Toast.makeText(this@UserListActivity, "Approved Successfully!", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Toast.makeText(this@UserListActivity, "Failed: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
     private fun showPaymentDialog(user: User) {
         val input = EditText(this)
         input.inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
-        input.hint = "Amount Received (₹)"
-
+        input.hint = "Amount Received"
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(60, 40, 60, 10)
@@ -86,8 +86,8 @@ class UserListActivity : AppCompatActivity() {
         }
 
         AlertDialog.Builder(this)
-            .setTitle("Record Manual Payment") // Context for NEFT
-            .setMessage("Dealer: ${user.name}\nCurrent Debt: ₹${user.currentBalance}\n\nEnter amount received via Cash/NEFT/Cheque:")
+            .setTitle("Record Payment")
+            .setMessage("Dealer: ${user.name}\nCurrent Debt: ₹${user.currentBalance}")
             .setView(layout)
             .setPositiveButton("Confirm") { _, _ ->
                 val amount = input.text.toString().toDoubleOrNull()
@@ -98,26 +98,18 @@ class UserListActivity : AppCompatActivity() {
     }
 
     private fun processPayment(user: User, amount: Double) {
-        val newBalance = (user.currentBalance - amount)
-        // We allow negative balance (credit) if they overpay, or limit to 0. Let's limit to 0.
-        val finalBalance = if (newBalance < 0) 0.0 else newBalance
-
+        val newBalance = if ((user.currentBalance - amount) < 0) 0.0 else (user.currentBalance - amount)
         lifecycleScope.launch {
-            try {
-                db.collection("users").document(user.uid).update("currentBalance", finalBalance).await()
-                Toast.makeText(this@UserListActivity, "Payment Recorded! User Unblocked.", Toast.LENGTH_LONG).show()
-                loadUsers()
-            } catch(e: Exception) {
-                Toast.makeText(this@UserListActivity, "Update Failed: ${e.message}", Toast.LENGTH_SHORT).show()
-            }
+            db.collection("users").document(user.uid).update("currentBalance", newBalance).await()
+            Toast.makeText(this@UserListActivity, "Payment Recorded!", Toast.LENGTH_SHORT).show()
         }
     }
 }
 
-// ADAPTER (Same as before, included for completeness)
 class UserLedgerAdapter(
     private val users: List<User>,
-    private val onReceiveClick: (User) -> Unit
+    private val onReceiveClick: (User) -> Unit,
+    private val onApproveClick: (User) -> Unit
 ) : RecyclerView.Adapter<UserLedgerAdapter.Holder>() {
 
     class Holder(val binding: ItemUserLedgerBinding) : RecyclerView.ViewHolder(binding.root)
@@ -128,28 +120,39 @@ class UserLedgerAdapter(
 
     override fun onBindViewHolder(holder: Holder, position: Int) {
         val user = users[position]
-        holder.binding.tvName.text = user.name
+        holder.binding.tvName.text = user.name.ifEmpty { "New User" }
         holder.binding.tvPhone.text = user.phone
 
         val format = NumberFormat.getCurrencyInstance(Locale("en", "IN"))
-        holder.binding.tvBalance.text = format.format(user.currentBalance)
 
-        if (user.currentBalance > 1.0) {
-            holder.binding.tvStatus.text = "DUE"
-            holder.binding.tvBalance.setTextColor(android.graphics.Color.RED)
-            holder.binding.btnReceive.text = "Clear Bill"
-            holder.binding.btnReceive.isEnabled = true
+        // APPROVAL LOGIC
+        if (!user.isApproved && user.role != "admin") {
+            holder.binding.tvStatus.text = "PENDING APPROVAL"
+            holder.binding.tvStatus.setTextColor(Color.parseColor("#FF6D00")) // Orange
+            holder.binding.tvBalance.visibility = View.GONE
+            holder.binding.btnReceive.text = "APPROVE"
+            holder.binding.btnReceive.setBackgroundColor(Color.parseColor("#FF6D00"))
+            holder.binding.btnReceive.setTextColor(Color.WHITE)
+            holder.binding.btnReceive.setOnClickListener { onApproveClick(user) }
         } else {
-            holder.binding.tvStatus.text = "CLEARED"
-            holder.binding.tvBalance.setTextColor(android.graphics.Color.parseColor("#2E7D32")) // Green
-            holder.binding.btnReceive.text = "Paid"
-            holder.binding.btnReceive.isEnabled = false // Disable if no debt
-        }
+            // NORMAL LEDGER LOGIC
+            holder.binding.tvBalance.visibility = View.VISIBLE
+            holder.binding.tvBalance.text = format.format(user.currentBalance)
 
-        // Allow clicking specifically to fix mistakes even if paid?
-        // Let's keep it enabled so you can adjust if needed, or disable as above.
-        holder.binding.btnReceive.isEnabled = true
-        holder.binding.btnReceive.setOnClickListener { onReceiveClick(user) }
+            if (user.currentBalance > 1.0) {
+                holder.binding.tvStatus.text = "DUE"
+                holder.binding.tvBalance.setTextColor(Color.RED)
+                holder.binding.btnReceive.text = "Clear Bill"
+            } else {
+                holder.binding.tvStatus.text = "PAID"
+                holder.binding.tvBalance.setTextColor(Color.parseColor("#2E7D32"))
+                holder.binding.btnReceive.text = "Paid"
+            }
+            // Reset Button Style
+            holder.binding.btnReceive.setBackgroundColor(Color.parseColor("#E0E0E0")) // Default gray
+            holder.binding.btnReceive.setTextColor(Color.BLACK)
+            holder.binding.btnReceive.setOnClickListener { onReceiveClick(user) }
+        }
     }
 
     override fun getItemCount() = users.size

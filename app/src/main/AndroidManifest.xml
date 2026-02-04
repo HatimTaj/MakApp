@@ -35,6 +35,7 @@
 
         <activity android:name=".ui.dealer.DealerDashboardActivity" />
         <activity android:name=".ui.admin.UserListActivity" />
+        <activity android:name=".ui.auth.RegisterActivity" />
 
     </application>
 </manifest>

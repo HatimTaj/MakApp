@@ -1,10 +1,14 @@
 package com.hatim.makmanager.ui.admin
 
+import android.content.Context
 import android.graphics.Color
 import android.os.Bundle
+import android.util.TypedValue
 import android.view.View
 import android.widget.TextView
 import android.widget.Toast
+import androidx.annotation.AttrRes
+import androidx.annotation.ColorInt
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.google.firebase.firestore.FirebaseFirestore
@@ -58,7 +62,6 @@ class OrderDetailsActivity : AppCompatActivity() {
                 val order = snapshot.toObject(Order::class.java)
                 if (order != null) {
                     displayData(order)
-                    // Fetch Full Dealer Details (Address/City)
                     fetchDealerDetails(order.dealerId)
                 }
             } catch (e: Exception) {
@@ -67,7 +70,6 @@ class OrderDetailsActivity : AppCompatActivity() {
         }
     }
 
-    // NEW: Fetches Address/City for Admin view
     private fun fetchDealerDetails(dealerId: String) {
         lifecycleScope.launch {
             try {
@@ -89,13 +91,9 @@ class OrderDetailsActivity : AppCompatActivity() {
 
         binding.tvOrderId.text = "Order #${order.id.takeLast(6).uppercase()}"
         binding.tvDate.text = dateFormat.format(order.timestamp.toDate())
-
-        // Basic info first, full details fetched later
         binding.tvDealerInfo.text = "${order.dealerName}\n${order.dealerPhone}"
 
         binding.tvTotalAmount.text = currencyFormat.format(order.totalPrice)
-
-        // --- FIX 1: Show 2 Decimal Places for Litres ---
         binding.tvTotalLitres.text = "Total Volume: ${String.format("%.2f", order.totalLitres)} L"
 
         binding.tvStatus.text = order.status
@@ -129,14 +127,26 @@ class OrderDetailsActivity : AppCompatActivity() {
 
         text1.text = "${item.productName} (${item.variantSize})"
         text1.textSize = 16f
-        text1.setTextColor(Color.BLACK) // Kept Black for visibility
+
+        // --- FIX: USE DYNAMIC COLORS (White in Dark Mode, Black in Light Mode) ---
+        text1.setTextColor(getColorFromAttr(com.google.android.material.R.attr.colorOnSurface))
 
         val totalItemPrice = item.priceAtOrder * item.cartonQuantity
         text2.text = "${item.cartonQuantity} Cartons x ${format.format(item.priceAtOrder)} = ${format.format(totalItemPrice)}"
-        text2.setTextColor(Color.DKGRAY)
+
+        // Use a variant color (Grey in Light, Light Grey in Dark)
+        text2.setTextColor(getColorFromAttr(com.google.android.material.R.attr.colorOnSurfaceVariant))
 
         itemView.setPadding(0, 16, 0, 16)
         binding.llOrderItems.addView(itemView)
+    }
+
+    // Helper to get correct color based on Theme (Light/Dark)
+    @ColorInt
+    private fun Context.getColorFromAttr(@AttrRes attrColor: Int): Int {
+        val typedValue = TypedValue()
+        theme.resolveAttribute(attrColor, typedValue, true)
+        return typedValue.data
     }
 
     private fun approveOrderWithStockDeduction() {
